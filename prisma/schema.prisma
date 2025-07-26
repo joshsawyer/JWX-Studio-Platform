@@ -1,0 +1,165 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  phone       String?
+  profilePicture String?
+  passwordHash String
+  salt        String
+  role        Role     @default(CLIENT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  projects    Project[]
+  comments    Comment[]
+  approvals   Approval[]
+  sessions    Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  artist      String
+  description String?
+  coverImage  String?
+  status      ProjectStatus @default(ACTIVE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  tracks      Track[]
+}
+
+model Track {
+  id          String   @id @default(cuid())
+  name        String
+  trackNumber Int?
+  bpm         Int?
+  key         String?
+  duration    Int?     // duration in seconds
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  projectId     String
+  project       Project        @relation(fields: [projectId], references: [id])
+  audioVersions AudioVersion[]
+  comments      Comment[]
+}
+
+model AudioVersion {
+  id           String      @id @default(cuid())
+  versionType  VersionType
+  fileName     String
+  filePath     String
+  fileSize     Int
+  isNormalized Boolean     @default(false) // Apple Music normalization standard
+  lufsLevel    Float?      // LUFS measurement for normalization
+  waveformData Json?       // Store waveform peaks data
+  createdAt    DateTime    @default(now())
+  
+  // Relations
+  trackId   String
+  track     Track     @relation(fields: [trackId], references: [id])
+  comments  Comment[]
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  content     String
+  timestampMs Int      // timestamp in milliseconds
+  status      CommentStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  userId           String
+  user             User         @relation(fields: [userId], references: [id])
+  trackId          String
+  track            Track        @relation(fields: [trackId], references: [id])
+  audioVersionId   String
+  audioVersion     AudioVersion @relation(fields: [audioVersionId], references: [id])
+  replies          CommentReply[]
+  approvals        Approval[]
+}
+
+model CommentReply {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  
+  // Relations
+  commentId String
+  comment   Comment @relation(fields: [commentId], references: [id])
+  userId    String
+}
+
+model Approval {
+  id        String        @id @default(cuid())
+  status    ApprovalStatus
+  notes     String?
+  createdAt DateTime      @default(now())
+  
+  // Relations
+  commentId String
+  comment   Comment @relation(fields: [commentId], references: [id])
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+}
+
+// Enums
+enum Role {
+  ADMIN
+  ENGINEER
+  CLIENT
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum VersionType {
+  STEREO
+  ATMOS
+  REFERENCE
+}
+
+enum CommentStatus {
+  PENDING
+  APPROVED
+  RESOLVED
+  REJECTED
+}
+
+enum ApprovalStatus {
+  APPROVED
+  REJECTED
+  NEEDS_REVISION
+}
