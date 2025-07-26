@@ -1,0 +1,11 @@
+{
+  "/api/audio-stream/[...path]/route": "app/api/audio-stream/[...path]/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/api/tracks/[id]/route": "app/api/tracks/[id]/route.js",
+  "/api/projects/[id]/route": "app/api/projects/[id]/route.js",
+  "/api/user/me/route": "app/api/user/me/route.js",
+  "/api/projects/route": "app/api/projects/route.js",
+  "/project/[id]/page": "app/project/[id]/page.js",
+  "/track/[id]/page": "app/track/[id]/page.js",
+  "/dashboard/page": "app/dashboard/page.js"
+}
