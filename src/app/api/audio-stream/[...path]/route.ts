@@ -11,30 +11,31 @@ const AUDIO_FILES_BASE_DIR = '/Users/joshsawyer/Documents/GitHub/JWX-Studio-Plat
 
 export async function GET(
   req: NextRequest,
-  // IMPORTANT: params needs to be destructured from the second argument,
-  // and it's already an object, not a Promise. The error message is a bit misleading
-  // if it implies `params` itself is a Promise.
-  // The issue is often with how Next.js handles dynamic segments in server components/routes.
-  // However, the typical fix for "params should be awaited" in a route handler
-  // is to ensure the handler is `async` and the `params` object is correctly typed
-  // and accessed. The previous structure was correct for how Next.js passes dynamic params.
-  // This specific error "params should be awaited before using its properties"
-  // can sometimes be a red herring or related to an older Next.js version/specific setup.
-  // Let's ensure the `params` object is directly used as it's passed.
-  // The error message might be indicating a deeper issue with the Next.js runtime
-  // or how the route is being compiled if `params` is indeed being treated as a Promise.
-  // For now, let's keep the direct access as it's standard.
-  // If the error persists, it might point to a Next.js version or build-time issue.
+  // Keep params in the signature for type inference, but we'll try to get path differently
   { params }: { params: { path: string[] } }
 ) {
   try {
-    // The 'path' parameter is an array of segments (e.g., ['projects', 'id1', 'id2', 'stereo.wav'])
-    // No `await` is typically needed for `params` itself in App Router route handlers,
-    // as it's passed as a direct object.
-    const relativeFilePath = params.path.join(path.sep); // Reconstruct the relative path
+    // Attempt to get the path segments directly from req.nextUrl.pathname
+    // This bypasses the 'params' object which seems to be causing issues.
+    // The pathname will be something like '/api/audio-stream/projects/id/file.wav'
+    const fullApiPath = req.nextUrl.pathname;
+    
+    // Extract the part after '/api/audio-stream/'
+    const apiPrefix = '/api/audio-stream/';
+    let relativeFilePath: string;
 
-    // Log the relative path received by the API
-    console.log('API: Received relativeFilePath from URL params:', relativeFilePath);
+    if (fullApiPath.startsWith(apiPrefix)) {
+      relativeFilePath = fullApiPath.substring(apiPrefix.length);
+    } else {
+      console.error('API: Pathname does not start with expected prefix:', fullApiPath);
+      return new NextResponse('Invalid API path structure.', { status: 400 });
+    }
+
+    // Decode URI components in case there are special characters in filenames
+    relativeFilePath = decodeURIComponent(relativeFilePath);
+
+    // Log the relative path derived from pathname
+    console.log('API (from pathname): Derived relativeFilePath:', relativeFilePath);
 
     // Construct the full absolute path to the audio file
     const absoluteFilePath = path.join(AUDIO_FILES_BASE_DIR, relativeFilePath);

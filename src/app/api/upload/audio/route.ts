@@ -3,9 +3,10 @@ import { promises as fs } from 'fs'
 import path from 'path'
 import { prisma } from '@/lib/db'
 import { getAuthUser } from '@/lib/middleware'
+import { normalizeAudioFile } from '@/lib/audioProcessing'
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024 // 500MB
-const ALLOWED_TYPES = ['audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/flac', 'audio/aiff']
+const ALLOWED_TYPES = ['audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/flac', 'audio/aiff', 'application/octet-stream']
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,10 +32,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate file type
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    // Validate file type and extension
+    const allowedExtensions = ['.wav', '.mp3', '.flac', '.aiff']
+    if (versionType === 'ATMOS') allowedExtensions.push('.bin', '.wav')
+    const fileExt = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+    if (!ALLOWED_TYPES.includes(file.type) && !allowedExtensions.includes(fileExt)) {
       return NextResponse.json(
-        { error: 'Invalid file type. Allowed: WAV, MP3, FLAC, AIFF' },
+        { error: versionType === 'ATMOS' ? 'Invalid file type. Only BIN or WAV files are allowed for Atmos.' : 'Invalid file type. Allowed: WAV, MP3, FLAC, AIFF' },
         { status: 400 }
       )
     }
@@ -48,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate version type
-    if (!['STEREO', 'ATMOS', 'REFERENCE'].includes(versionType)) {
+    if (!['STEREO', 'ATMOS', 'REFERENCE', 'BINAURAL'].includes(versionType)) {
       return NextResponse.json(
         { error: 'Invalid version type' },
         { status: 400 }
@@ -88,15 +92,57 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate filename
-    const fileExtension = path.extname(file.name) || '.wav'
-    const fileName = `${versionType.toLowerCase()}${fileExtension}`
-    const filePath = path.join(uploadDir, fileName)
-    const relativePath = `/uploads/projects/${projectId}/${trackId}/${fileName}`
+    let fileExtension = path.extname(file.name) || '.wav'
+    let fileName = `${versionType.toLowerCase()}${fileExtension}`
+    let filePath = path.join(uploadDir, fileName)
+    let relativePath = `/uploads/projects/${projectId}/${trackId}/${fileName}`
+    // For ATMOS, always save as .wav
+    if (versionType === 'ATMOS') {
+      fileExtension = '.wav'
+      fileName = `${versionType.toLowerCase()}${fileExtension}`
+      filePath = path.join(uploadDir, fileName)
+      relativePath = `/uploads/projects/${projectId}/${trackId}/${fileName}`
+    }
 
-    // Save file
+    // Save uploaded file to a temp location first
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    await fs.writeFile(filePath, buffer)
+    const tempPath = path.join(uploadDir, `temp_${Date.now()}${fileExtension}`)
+    await fs.writeFile(tempPath, buffer)
+
+    // Map versionType to normalization target key
+    let normalizationKey: 'STEREO_MASTER' | 'ATMOS' | 'REFERENCE' | 'BINAURAL'
+    switch (versionType.toUpperCase()) {
+      case 'STEREO':
+        normalizationKey = 'STEREO_MASTER'
+        break
+      case 'ATMOS':
+        normalizationKey = 'ATMOS'
+        break
+      case 'REFERENCE':
+        normalizationKey = 'REFERENCE'
+        break
+      case 'BINAURAL':
+        normalizationKey = 'BINAURAL'
+        break
+      default:
+        normalizationKey = 'STEREO_MASTER'
+    }
+
+    let normResult = null
+    if (versionType === 'ATMOS') {
+      // For ATMOS, just move the .bin file to .wav, no normalization
+      await fs.rename(tempPath, filePath)
+      normResult = { success: true, analysis: {}, normalizedPath: filePath, settings: {} }
+    } else {
+      // For BINAURAL, treat as a regular WAV file and normalize
+      normResult = await normalizeAudioFile(tempPath, filePath, normalizationKey)
+      // Remove temp file
+      await fs.unlink(tempPath)
+      if (!normResult.success) {
+        return NextResponse.json({ error: 'Audio normalization failed', details: normResult.error }, { status: 500 })
+      }
+    }
 
     // Update or create audio version in database
     const existingVersion = await prisma.audioVersion.findFirst({
@@ -114,8 +160,9 @@ export async function POST(request: NextRequest) {
         data: {
           fileName,
           filePath: relativePath,
-          fileSize: file.size,
-          isNormalized: false // Reset normalization flag
+          fileSize: buffer.length,
+          isNormalized: versionType === 'ATMOS' ? false : true,
+          lufsLevel: versionType === 'ATMOS' ? null : normResult.analysis.originalLufs ?? null
         }
       })
     } else {
@@ -126,8 +173,9 @@ export async function POST(request: NextRequest) {
           versionType: versionType as 'STEREO' | 'ATMOS' | 'REFERENCE',
           fileName,
           filePath: relativePath,
-          fileSize: file.size,
-          isNormalized: false
+          fileSize: buffer.length,
+          isNormalized: versionType === 'ATMOS' ? false : true,
+          lufsLevel: versionType === 'ATMOS' ? null : normResult.analysis.originalLufs ?? null
         }
       })
     }

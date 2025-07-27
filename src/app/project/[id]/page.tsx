@@ -54,6 +54,9 @@ export default function ProjectPage() {
     key: ''
   })
 
+  const [removingTrackId, setRemovingTrackId] = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+
   useEffect(() => {
     if (params.id) {
       fetchProject()
@@ -141,6 +144,24 @@ export default function ProjectPage() {
       stereo: versions.STEREO || false,
       atmos: versions.ATMOS || false,
       reference: versions.REFERENCE || false
+    }
+  }
+
+  const handleRemoveTrack = async (trackId: string) => {
+    setRemovingTrackId(trackId)
+    setRemoveError(null)
+    try {
+      const res = await fetch(`/api/tracks/${trackId}`, { method: 'DELETE' })
+      if (res.ok) {
+        fetchProject()
+      } else {
+        const data = await res.json()
+        setRemoveError(data.error || 'Failed to remove track.')
+      }
+    } catch (err: any) {
+      setRemoveError(err.message || 'Failed to remove track.')
+    } finally {
+      setRemovingTrackId(null)
     }
   }
 
@@ -408,62 +429,67 @@ export default function ProjectPage() {
                 {project.tracks.map((track, index) => {
                   const versions = getVersionCounts(track)
                   return (
-                    <Link
-                      key={track.id}
-                      href={`/track/${track.id}`}
-                      className="block px-8 py-6 hover:bg-gray-50 transition-colors group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4 flex-1">
-                          {/* Track Number */}
-                          <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center group-hover:bg-red-200 transition-colors">
-                            <span className="text-red-600 font-medium text-sm">
-                              {track.trackNumber || index + 1}
-                            </span>
-                          </div>
-
-                          {/* Track Info */}
-                          <div className="flex-1">
-                            <h3 className="text-lg font-semibold text-gray-800 group-hover:text-red-600 transition-colors">
-                              {track.name}
-                            </h3>
-                            <div className="flex items-center space-x-4 text-sm text-gray-600">
-                              <span>{formatDuration(track.duration)}</span>
-                              {track.bpm && <span>{track.bpm} BPM</span>}
-                              {track.key && <span>Key: {track.key}</span>}
-                              {track._count?.comments && (
-                                <span>{track._count.comments} comment{track._count.comments !== 1 ? 's' : ''}</span>
-                              )}
-                            </div>
-                          </div>
+                    <div key={track.id} className="flex items-center justify-between px-8 py-6 hover:bg-gray-50 transition-colors group">
+                      <Link
+                        href={`/track/${track.id}`}
+                        className="flex items-center space-x-4 flex-1"
+                      >
+                        {/* Track Number */}
+                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center group-hover:bg-red-200 transition-colors">
+                          <span className="text-red-600 font-medium text-sm">
+                            {track.trackNumber || index + 1}
+                          </span>
                         </div>
 
-                        {/* Available Versions */}
-                        <div className="flex items-center space-x-4">
-                          <div className="flex items-center space-x-2">
-                            <div className={`w-3 h-3 rounded-full ${versions.stereo ? 'bg-green-500' : 'bg-gray-300'}`} title="Stereo"></div>
-                            <div className={`w-3 h-3 rounded-full ${versions.atmos ? 'bg-blue-500' : 'bg-gray-300'}`} title="Atmos"></div>
-                            <div className={`w-3 h-3 rounded-full ${versions.reference ? 'bg-purple-500' : 'bg-gray-300'}`} title="Reference"></div>
+                        {/* Track Info */}
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-800 group-hover:text-red-600 transition-colors">
+                            {track.name}
+                          </h3>
+                          <div className="flex items-center space-x-4 text-sm text-gray-600">
+                            <span>{formatDuration(track.duration)}</span>
+                            {track.bpm && <span>{track.bpm} BPM</span>}
+                            {track.key && <span>Key: {track.key}</span>}
+                            {track._count?.comments && (
+                              <span>{track._count.comments} comment{track._count.comments !== 1 ? 's' : ''}</span>
+                            )}
                           </div>
-                          
-                          {track.audioVersions.length === 0 && (
-                            <Link
-                              href={`/track/${track.id}/upload`}
-                              className="text-xs px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Upload Audio
-                            </Link>
+                        </div>
+                      </Link>
+
+                      {/* Available Versions & Remove Button */}
+                      <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2">
+                          <div className={`w-3 h-3 rounded-full ${versions.stereo ? 'bg-green-500' : 'bg-gray-300'}`} title="Stereo"></div>
+                          <div className={`w-3 h-3 rounded-full ${versions.atmos ? 'bg-blue-500' : 'bg-gray-300'}`} title="Atmos"></div>
+                          <div className={`w-3 h-3 rounded-full ${versions.reference ? 'bg-purple-500' : 'bg-gray-300'}`} title="Reference"></div>
+                        </div>
+                        {track.audioVersions.length === 0 && (
+                          <Link
+                            href={`/track/${track.id}/upload`}
+                            className="text-xs px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Upload Audio
+                          </Link>
+                        )}
+                        <button
+                          onClick={() => handleRemoveTrack(track.id)}
+                          disabled={removingTrackId === track.id}
+                          className="ml-2 p-2 rounded-full hover:bg-red-100 text-red-600 hover:text-red-800 transition-colors disabled:opacity-60"
+                          title="Remove Track"
+                        >
+                          {removingTrackId === track.id ? (
+                            <span className="animate-spin w-4 h-4 inline-block border-b-2 border-red-600 rounded-full"></span>
+                          ) : (
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z"/><path fillRule="evenodd" d="M4 6a1 1 0 011-1h10a1 1 0 011 1v10a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm2 0v10h8V6H6zM9 2a1 1 0 00-1 1v1H6a1 1 0 000 2h8a1 1 0 100-2h-2V3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg>
                           )}
-                          
-                          <svg className="w-5 h-5 text-gray-400 group-hover:text-red-600 transition-colors" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
-                          </svg>
-                        </div>
+                        </button>
                       </div>
-                    </Link>
+                    </div>
                   )
                 })}
+                {removeError && <div className="text-red-600 text-sm px-8 py-2">{removeError}</div>}
               </div>
             )}
           </div>

@@ -131,21 +131,29 @@ const WaveformPlayer = ({
       return
     }
 
+    let wavesurfer: any = null;
+    let isMounted = true;
+
     const loadWaveSurfer = async () => {
       try {
         setIsLoading(true)
         setError(null)
-        
+
+        // Clear the container before creating a new instance
+        if (containerRef.current) {
+          containerRef.current.innerHTML = ''
+        }
+
         const WaveSurfer = (await import('wavesurfer.js')).default
-        
-        const wavesurfer = WaveSurfer.create({
-          container: containerRef.current,
+
+        // Assert containerRef.current is not null for WaveSurfer.create
+        wavesurfer = WaveSurfer.create({
+          container: containerRef.current!,
           waveColor: '#FCA5A5',
           progressColor: '#DC2626',
           cursorColor: '#991B1B',
           barWidth: 3,
           barRadius: 2,
-          responsive: true,
           height: height,
           normalize: true,
           interact: true,
@@ -156,25 +164,29 @@ const WaveformPlayer = ({
 
         // Event listeners
         wavesurfer.on('ready', () => {
+          if (!isMounted) return;
           setIsLoading(false)
           setDuration(wavesurfer.getDuration())
           onReady?.()
         })
 
-        wavesurfer.on('play', () => setIsPlaying(true))
-        wavesurfer.on('pause', () => setIsPlaying(false))
+        wavesurfer.on('play', () => isMounted && setIsPlaying(true))
+        wavesurfer.on('pause', () => isMounted && setIsPlaying(false))
         
         wavesurfer.on('timeupdate', (time: number) => {
+          if (!isMounted) return;
           setCurrentTime(time)
           onTimeUpdate?.(time)
         })
 
         wavesurfer.on('click', (relativeX: number) => {
+          if (!isMounted) return;
           const clickTime = relativeX * duration
           setCommentTimestamp(clickTime * 1000)
         })
 
-        wavesurfer.on('error', (err) => {
+        wavesurfer.on('error', (err: any) => {
+          if (!isMounted) return;
           setError(`Failed to load audio: ${err.message || err}`)
           setIsLoading(false)
         })
@@ -182,19 +194,30 @@ const WaveformPlayer = ({
         await wavesurfer.load(getSecureAudioUrl(audioUrl))
         
       } catch (err: any) {
-        setError(`Error: ${err.message}`)
-        setIsLoading(false)
+        if (isMounted) {
+          setError(`Error: ${err.message}`)
+          setIsLoading(false)
+        }
       }
     }
 
     loadWaveSurfer()
 
     return () => {
+      isMounted = false;
       if (wavesurferRef.current) {
-        wavesurferRef.current.destroy()
+        // Stop playback before destroying
+        if (typeof wavesurferRef.current.pause === 'function') {
+          wavesurferRef.current.pause();
+        }
+        wavesurferRef.current.destroy();
+        wavesurferRef.current = null;
+      }
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
       }
     }
-  }, [audioUrl, height, onReady])
+  }, [audioUrl]) // Only re-run when audioUrl changes
 
   const togglePlayPause = () => {
     if (wavesurferRef.current) {
@@ -429,10 +452,11 @@ const WaveformPlayer = ({
 
                 {/* Waveform with Comment Dots */}
                 <div className="relative">
-                  <div 
-                    ref={containerRef} 
+                  <div
+                    key={audioUrl}
+                    ref={containerRef}
                     className={`rounded-xl overflow-hidden cursor-pointer border-2 border-gray-200 ${(isLoading || error) ? 'hidden' : ''}`}
-                    style={{ 
+                    style={{
                       background: 'linear-gradient(to right, #f8fafc, #f1f5f9)',
                       boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.1)'
                     }}
