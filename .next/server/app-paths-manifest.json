@@ -1,14 +1,9 @@
 {
-  "/api/user/me/route": "app/api/user/me/route.js",
-  "/api/projects/route": "app/api/projects/route.js",
-  "/api/auth/login/route": "app/api/auth/login/route.js",
-  "/api/projects/[id]/route": "app/api/projects/[id]/route.js",
-  "/api/audio-stream/[...path]/route": "app/api/audio-stream/[...path]/route.js",
-  "/api/tracks/[id]/route": "app/api/tracks/[id]/route.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/auth/page": "app/auth/page.js",
-  "/page": "app/page.js",
-  "/project/[id]/page": "app/project/[id]/page.js",
+  "/api/tracks/[id]/route": "app/api/tracks/[id]/route.js",
+  "/api/audio-stream/[...path]/route": "app/api/audio-stream/[...path]/route.js",
+  "/api/projects/[id]/route": "app/api/projects/[id]/route.js",
+  "/dashboard/page": "app/dashboard/page.js",
   "/track/[id]/page": "app/track/[id]/page.js",
-  "/dashboard/page": "app/dashboard/page.js"
+  "/project/[id]/page": "app/project/[id]/page.js"
 }

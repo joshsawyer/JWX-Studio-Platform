@@ -8,9 +8,9 @@ interface WaveformPlayerProps {
   artistName: string
   albumName: string
   height?: number
-  currentMix?: 'stereo' | 'atmos' | 'reference'
-  availableMixes?: ('STEREO' | 'ATMOS' | 'REFERENCE')[]
-  onMixChange?: (mix: 'stereo' | 'atmos' | 'reference') => void
+  currentMix?: 'stereo' | 'atmos' | 'reference' | 'binaural'
+  availableMixes?: ('STEREO' | 'ATMOS' | 'REFERENCE' | 'BINAURAL')[]
+  onMixChange?: (mix: 'stereo' | 'atmos' | 'reference' | 'binaural') => void
   trackId?: string
   projectId?: string
   onReady?: () => void
@@ -60,9 +60,9 @@ const WaveformPlayer = ({
   const [volume, setVolume] = useState(0.8)
 
   // Mix state
-  const [currentMix, setCurrentMix] = useState<'stereo' | 'atmos' | 'reference'>(propCurrentMix)
+  const [currentMix, setCurrentMix] = useState<'stereo' | 'atmos' | 'reference' | 'binaural'>(propCurrentMix)
 
-  const handleMixChange = (mix: 'stereo' | 'atmos' | 'reference') => {
+  const handleMixChange = (mix: 'stereo' | 'atmos' | 'reference' | 'binaural') => {
     setCurrentMix(mix)
     onMixChange?.(mix)
   }

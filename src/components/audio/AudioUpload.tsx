@@ -27,8 +27,8 @@ export default function AudioUpload({
     let allowedTypes = ['audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/flac', 'audio/aiff']
     let allowedExtensions = ['.wav', '.mp3', '.flac', '.aiff']
     if (versionType === 'ATMOS') {
-      allowedTypes = ['application/octet-stream']
-      allowedExtensions = ['.bin']
+      allowedTypes = ['application/octet-stream', 'audio/wav']
+      allowedExtensions = ['.bin', '.wav']
     }
     if (file.size > maxSize) {
       throw new Error('File size must be less than 500MB')
@@ -37,7 +37,7 @@ export default function AudioUpload({
     const fileExt = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
     if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExt)) {
       if (versionType === 'ATMOS') {
-        throw new Error('Only BIN files are allowed for Atmos')
+        throw new Error('Only BIN or WAV files are allowed for Atmos')
       } else {
         throw new Error('Only WAV, MP3, FLAC, and AIFF files are allowed')
       }
@@ -190,7 +190,7 @@ export default function AudioUpload({
         <input
           ref={fileInputRef}
           type="file"
-          accept={versionType === 'ATMOS' ? '.bin' : '.wav,.mp3,.flac,.aiff'}
+          accept={versionType === 'ATMOS' ? '.bin,.wav' : '.wav,.mp3,.flac,.aiff'}
           onChange={handleFileSelect}
           className="hidden"
           disabled={uploading}
@@ -228,7 +228,7 @@ export default function AudioUpload({
               </div>
             </div>
             <div className="text-xs text-gray-500">
-              {versionType === 'ATMOS' ? 'BIN (Dolby Atmos ADM BWF) • Max 500MB' : 'WAV, MP3, FLAC, AIFF • Max 500MB'}
+              {versionType === 'ATMOS' ? 'BIN or WAV (Dolby Atmos ADM BWF) • Max 500MB' : 'WAV, MP3, FLAC, AIFF • Max 500MB'}
             </div>
           </div>
         )}
