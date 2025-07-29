@@ -9,10 +9,9 @@ interface WaveformPlayerProps {
   albumName: string
   height?: number
   currentMix?: 'stereo' | 'atmos' | 'reference' | 'binaural'
-  availableMixes?: ('STEREO' | 'ATMOS' | 'REFERENCE' | 'BINAURAL')[]
-  onMixChange?: (mix: 'stereo' | 'atmos' | 'reference' | 'binaural') => void
   trackId?: string
   projectId?: string
+  audioVersionId?: string
   onReady?: () => void
   onTimeUpdate?: (currentTime: number) => void
 }
@@ -21,7 +20,12 @@ interface Comment {
   id: string
   timestampMs: number
   content: string
-  user: string
+  user: {
+    id: string
+    name: string
+    email: string
+    role: string
+  }
   status: 'pending' | 'approved' | 'resolved'
   replies?: CommentReply[]
 }
@@ -29,7 +33,13 @@ interface Comment {
 interface CommentReply {
   id: string
   content: string
-  user: string
+  comment: {
+    user: {
+      id: string
+      name: string
+      role: string
+    }
+  }
   createdAt: string
 }
 
@@ -40,15 +50,13 @@ const WaveformPlayer = ({
   albumName,
   height = 150,
   currentMix: propCurrentMix = 'stereo',
-  availableMixes = ['STEREO'],
-  onMixChange,
   trackId,
   projectId,
+  audioVersionId,
   onReady, 
   onTimeUpdate 
 }: WaveformPlayerProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
-  const waveformContainerRef = useRef<HTMLDivElement>(null)
   const wavesurferRef = useRef<any>(null)
   
   // Audio state
@@ -59,51 +67,12 @@ const WaveformPlayer = ({
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(0.8)
 
-  // Mix state
-  const [currentMix, setCurrentMix] = useState<'stereo' | 'atmos' | 'reference' | 'binaural'>(propCurrentMix)
-
-  const handleMixChange = (mix: 'stereo' | 'atmos' | 'reference' | 'binaural') => {
-    setCurrentMix(mix)
-    onMixChange?.(mix)
-  }
+  // Mix state - controlled by parent component
+  const currentMix = propCurrentMix
 
   // Comment state
-  const [comments, setComments] = useState<Comment[]>([
-    {
-      id: '1',
-      timestampMs: 15000,
-      content: 'Guitar needs more presence in the mix',
-      user: 'Producer',
-      status: 'pending',
-      replies: []
-    },
-    {
-      id: '2', 
-      timestampMs: 45000,
-      content: 'Perfect vocal delivery here',
-      user: 'Client',
-      status: 'approved',
-      replies: [
-        { id: 'r1', content: 'Agreed! This is the take', user: 'Engineer', createdAt: '2024-01-15' }
-      ]
-    },
-    {
-      id: '3',
-      timestampMs: 78000,
-      content: 'Add reverb to drums',
-      user: 'Artist',
-      status: 'resolved',
-      replies: []
-    },
-    {
-      id: '4',
-      timestampMs: 92000,
-      content: 'Bass line is perfect',
-      user: 'Producer',
-      status: 'approved',
-      replies: []
-    }
-  ])
+  const [comments, setComments] = useState<Comment[]>([])
+  const [, setIsLoadingComments] = useState(false)
 
   const [newComment, setNewComment] = useState('')
   const [isAddingComment, setIsAddingComment] = useState(false)
@@ -123,6 +92,31 @@ const WaveformPlayer = ({
     // If it's already a full URL or public path, use as-is
     return filePath
   }
+
+  // Fetch comments from API
+  const fetchComments = async () => {
+    if (!trackId || !audioVersionId) return
+    
+    try {
+      setIsLoadingComments(true)
+      const response = await fetch(`/api/comments?trackId=${trackId}&audioVersionId=${audioVersionId}`)
+      if (response.ok) {
+        const fetchedComments = await response.json()
+        setComments(fetchedComments)
+      } else {
+        console.error('Failed to fetch comments:', response.statusText)
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error)
+    } finally {
+      setIsLoadingComments(false)
+    }
+  }
+
+  // Fetch comments when component mounts or trackId/audioVersionId changes
+  useEffect(() => {
+    fetchComments()
+  }, [trackId, audioVersionId])
 
   useEffect(() => {
     if (!containerRef.current || !audioUrl) {
@@ -246,47 +240,97 @@ const WaveformPlayer = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const addComment = () => {
-    if (!newComment.trim()) return
+  const addComment = async () => {
+    if (!newComment.trim() || !trackId || !audioVersionId) return
 
-    const comment: Comment = {
-      id: Date.now().toString(),
-      timestampMs: commentTimestamp,
-      content: newComment.trim(),
-      user: 'Current User',
-      status: 'pending',
-      replies: []
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          content: newComment.trim(),
+          timestampMs: commentTimestamp,
+          trackId,
+          audioVersionId
+        })
+      })
+
+      if (response.ok) {
+        const newCommentData = await response.json()
+        setComments([...comments, newCommentData])
+        setNewComment('')
+        setIsAddingComment(false)
+      } else {
+        console.error('Failed to add comment:', response.statusText)
+        // Optionally show user error message
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error)
+      // Optionally show user error message
     }
-
-    setComments([...comments, comment])
-    setNewComment('')
-    setIsAddingComment(false)
   }
 
-  const addReply = (commentId: string) => {
+  const addReply = async (commentId: string) => {
     if (!newReply.trim()) return
 
-    const reply: CommentReply = {
-      id: Date.now().toString(),
-      content: newReply.trim(),
-      user: 'Current User',
-      createdAt: new Date().toISOString().split('T')[0]
-    }
+    try {
+      const response = await fetch(`/api/comments/${commentId}/replies`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          content: newReply.trim()
+        })
+      })
 
-    setComments(comments.map(comment => 
-      comment.id === commentId 
-        ? { ...comment, replies: [...(comment.replies || []), reply] }
-        : comment
-    ))
-    
-    setNewReply('')
-    setReplyingTo(null)
+      if (response.ok) {
+        const replyData = await response.json()
+        setComments(comments.map(comment => 
+          comment.id === commentId 
+            ? { ...comment, replies: [...(comment.replies || []), replyData] }
+            : comment
+        ))
+        
+        setNewReply('')
+        setReplyingTo(null)
+      } else {
+        console.error('Failed to add reply:', response.statusText)
+        // Optionally show user error message
+      }
+    } catch (error) {
+      console.error('Error adding reply:', error)
+      // Optionally show user error message
+    }
   }
 
-  const updateCommentStatus = (commentId: string, status: Comment['status']) => {
-    setComments(comments.map(comment => 
-      comment.id === commentId ? { ...comment, status } : comment
-    ))
+  const updateCommentStatus = async (commentId: string, status: Comment['status']) => {
+    try {
+      const response = await fetch(`/api/comments/${commentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          status: status.toUpperCase()
+        })
+      })
+
+      if (response.ok) {
+        const updatedComment = await response.json()
+        setComments(comments.map(comment => 
+          comment.id === commentId ? updatedComment : comment
+        ))
+      } else {
+        console.error('Failed to update comment status:', response.statusText)
+        // Optionally show user error message
+      }
+    } catch (error) {
+      console.error('Error updating comment status:', error)
+      // Optionally show user error message
+    }
   }
 
   const getStatusColor = (status: Comment['status']) => {
@@ -393,29 +437,12 @@ const WaveformPlayer = ({
                   <p className="text-red-200 text-sm">{albumName}</p>
                 </div>
                 
-                {/* Mix Toggle */}
+                {/* Current Mix Display */}
                 <div className="flex items-center space-x-2">
-                  <span className="text-red-100 text-sm font-medium">Mix Version:</span>
-                  {(['stereo', 'atmos', 'reference'] as const).map((mix) => {
-                    const isAvailable = availableMixes.includes(mix.toUpperCase() as 'STEREO' | 'ATMOS' | 'REFERENCE')
-                    return (
-                      <button
-                        key={mix}
-                        onClick={() => isAvailable && handleMixChange(mix)}
-                        disabled={!isAvailable}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                          currentMix === mix && isAvailable
-                            ? 'bg-white text-red-600 shadow-lg'
-                            : isAvailable
-                            ? 'bg-red-700/50 text-red-100 hover:bg-red-700/70'
-                            : 'bg-gray-500/30 text-gray-400 cursor-not-allowed'
-                        }`}
-                      >
-                        {mix.charAt(0).toUpperCase() + mix.slice(1)}
-                        {!isAvailable && ' (N/A)'}
-                      </button>
-                    )
-                  })}
+                  <span className="text-red-100 text-sm font-medium">Playing:</span>
+                  <span className="px-3 py-1 bg-white/20 rounded-lg text-sm font-medium text-white">
+                    {currentMix.charAt(0).toUpperCase() + currentMix.slice(1)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -594,7 +621,7 @@ const WaveformPlayer = ({
                           >
                             {formatTime(comment.timestampMs / 1000)}
                           </button>
-                          <span className="text-gray-700 font-medium">{comment.user}</span>
+                          <span className="text-gray-700 font-medium">{comment.user.name}</span>
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(comment.status)}`}>
                             {comment.status.charAt(0).toUpperCase() + comment.status.slice(1)}
                           </span>
@@ -643,7 +670,7 @@ const WaveformPlayer = ({
                         {comment.replies.map((reply) => (
                           <div key={reply.id} className="bg-gray-50 rounded-lg p-4">
                             <div className="flex items-center space-x-3 mb-2">
-                              <span className="text-gray-700 font-medium text-sm">{reply.user}</span>
+                              <span className="text-gray-700 font-medium text-sm">{reply.comment.user.name}</span>
                               <span className="text-gray-500 text-xs">{reply.createdAt}</span>
                             </div>
                             <p className="text-gray-800 text-sm leading-relaxed">{reply.content}</p>

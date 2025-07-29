@@ -12,7 +12,7 @@ const AUDIO_FILES_BASE_DIR = '/Users/joshsawyer/Documents/GitHub/JWX-Studio-Plat
 export async function GET(
   req: NextRequest,
   // Keep params in the signature for type inference, but we'll try to get path differently
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
     // Attempt to get the path segments directly from req.nextUrl.pathname

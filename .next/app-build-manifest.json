@@ -46,6 +46,11 @@
       "static/chunks/main-app.js",
       "static/chunks/app/api/tracks/[id]/route.js"
     ],
+    "/api/comments/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/comments/route.js"
+    ],
     "/api/audio-stream/[...path]/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",

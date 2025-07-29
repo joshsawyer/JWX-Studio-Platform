@@ -155,20 +155,16 @@ export default function AudioUpload({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <div className="flex items-center space-x-3 mb-4">
-        <div className={`w-3 h-3 rounded-full ${getVersionColor()}`}></div>
-        <h3 className="text-lg font-semibold text-gray-800">{getVersionName()}</h3>
-      </div>
+    <div>
 
       {existingFile && !uploading && (
-        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+        <div className="mb-4 p-3 bg-green-900/20 border border-green-600/30 rounded-lg">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium text-gray-800">Current File</div>
-              <div className="text-xs text-gray-600">{existingFile}</div>
+              <div className="text-sm font-medium text-green-300">Current File</div>
+              <div className="text-xs text-green-400/80">{existingFile}</div>
             </div>
-            <div className="text-green-600 text-sm">✓ Uploaded</div>
+            <div className="text-green-400 text-sm">✓ Uploaded</div>
           </div>
         </div>
       )}
@@ -177,10 +173,10 @@ export default function AudioUpload({
       <div
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
           isDragging
-            ? 'border-red-400 bg-red-50'
+            ? 'border-red-400 bg-red-900/20'
             : uploading
-            ? 'border-gray-300 bg-gray-50'
-            : 'border-gray-300 hover:border-red-400 hover:bg-red-50 cursor-pointer'
+            ? 'border-red-600/50 bg-red-900/10'
+            : 'border-red-900/50 hover:border-red-400 hover:bg-red-900/20 cursor-pointer'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -198,36 +194,36 @@ export default function AudioUpload({
 
         {uploading ? (
           <div className="space-y-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-400 mx-auto"></div>
             <div>
-              <div className="text-sm font-medium text-gray-800 mb-2">
-                Uploading {versionType.toLowerCase()} mix...
+              <div className="text-sm font-medium text-white mb-2">
+                Uploading...
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-red-900/30 rounded-full h-2">
                 <div 
-                  className="bg-red-600 h-2 rounded-full transition-all duration-300"
+                  className="bg-red-400 h-2 rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
-              <div className="text-xs text-gray-600 mt-1">{uploadProgress}%</div>
+              <div className="text-xs text-red-300 mt-1">{uploadProgress}%</div>
             </div>
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-              <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 bg-red-900/30 rounded-full flex items-center justify-center mx-auto">
+              <svg className="w-6 h-6 text-red-400" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
               </svg>
             </div>
             <div>
-              <div className="text-lg font-medium text-gray-800 mb-1">
-                Drop your {versionType.toLowerCase()} mix here
+              <div className="text-lg font-medium text-white mb-1">
+                Drop your audio file here
               </div>
-              <div className="text-sm text-gray-600">
-                or <span className="text-red-600 font-medium">browse files</span>
+              <div className="text-sm text-gray-300">
+                or <span className="text-red-400 font-medium">browse files</span>
               </div>
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-gray-400">
               {versionType === 'ATMOS' ? 'BIN or WAV (Dolby Atmos ADM BWF) • Max 500MB' : 'WAV, MP3, FLAC, AIFF • Max 500MB'}
             </div>
           </div>
@@ -236,15 +232,15 @@ export default function AudioUpload({
 
       {/* Status Messages */}
       {error && (
-        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <div className="text-red-600 text-sm font-medium">Upload Error</div>
-          <div className="text-red-600 text-sm">{error}</div>
+        <div className="mt-4 p-3 bg-red-900/20 border border-red-600/50 rounded-lg">
+          <div className="text-red-300 text-sm font-medium">Upload Error</div>
+          <div className="text-red-400 text-sm">{error}</div>
         </div>
       )}
 
       {success && (
-        <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-          <div className="text-green-600 text-sm font-medium">✓ {success}</div>
+        <div className="mt-4 p-3 bg-green-900/20 border border-green-600/50 rounded-lg">
+          <div className="text-green-300 text-sm font-medium">✓ {success}</div>
         </div>
       )}
     </div>

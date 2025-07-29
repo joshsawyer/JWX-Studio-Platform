@@ -35,6 +35,39 @@ export async function GET(
             lufsLevel: true
           }
         },
+        comments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true
+              }
+            },
+            replies: {
+              include: {
+                comment: {
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        name: true,
+                        role: true
+                      }
+                    }
+                  }
+                }
+              },
+              orderBy: {
+                createdAt: 'asc'
+              }
+            }
+          },
+          orderBy: {
+            timestampMs: 'asc'
+          }
+        },
         _count: {
           select: {
             comments: true
@@ -66,10 +99,10 @@ export async function GET(
 // DELETE /api/tracks/[id] - Remove a track and its audio files
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     // Find the track and its audio versions
     const track = await prisma.track.findUnique({
       where: { id },
