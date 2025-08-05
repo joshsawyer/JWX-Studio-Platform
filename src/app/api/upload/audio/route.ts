@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate version type
-    if (!['STEREO', 'ATMOS', 'REFERENCE', 'BINAURAL'].includes(versionType)) {
+    if (!['STEREO', 'ATMOS', 'REFERENCE'].includes(versionType)) {
       return NextResponse.json(
         { error: 'Invalid version type' },
         { status: 400 }
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         project: {
-          select: { id: true, userId: true }
+          select: { id: true, userId: true, artist: true }
         }
       }
     })
@@ -81,9 +81,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create directory structure
+    // Create directory structure using artist name
     const projectId = track.project.id
-    const uploadDir = path.join(process.cwd(), 'uploads', 'projects', projectId, trackId)
+    const artistSlug = track.project.artist.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')
+    const uploadDir = path.join(process.cwd(), 'uploads', 'projects', projectId, artistSlug, trackId)
     
     try {
       await fs.mkdir(uploadDir, { recursive: true })
@@ -91,18 +92,17 @@ export async function POST(request: NextRequest) {
       console.error('Error creating directory:', error)
     }
 
-    // Generate filename
+    // Generate filename preserving original name
+    const originalName = path.parse(file.name).name
     let fileExtension = path.extname(file.name) || '.wav'
-    let fileName = `${versionType.toLowerCase()}${fileExtension}`
-    let filePath = path.join(uploadDir, fileName)
-    let relativePath = `/uploads/projects/${projectId}/${trackId}/${fileName}`
+    
     // For ATMOS, always save as .wav
     if (versionType === 'ATMOS') {
       fileExtension = '.wav'
-      fileName = `${versionType.toLowerCase()}${fileExtension}`
-      filePath = path.join(uploadDir, fileName)
-      relativePath = `/uploads/projects/${projectId}/${trackId}/${fileName}`
     }
+    
+    let fileName = `${originalName}_${versionType.toLowerCase()}${fileExtension}`
+    const filePath = path.join(uploadDir, fileName)
 
     // Save uploaded file to a temp location first
     const bytes = await file.arrayBuffer()
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     await fs.writeFile(tempPath, buffer)
 
     // Map versionType to normalization target key
-    let normalizationKey: 'STEREO_MASTER' | 'ATMOS' | 'REFERENCE' | 'BINAURAL'
+    let normalizationKey: 'STEREO_MASTER' | 'ATMOS' | 'REFERENCE'
     switch (versionType.toUpperCase()) {
       case 'STEREO':
         normalizationKey = 'STEREO_MASTER'
@@ -121,9 +121,6 @@ export async function POST(request: NextRequest) {
         break
       case 'REFERENCE':
         normalizationKey = 'REFERENCE'
-        break
-      case 'BINAURAL':
-        normalizationKey = 'BINAURAL'
         break
       default:
         normalizationKey = 'STEREO_MASTER'
@@ -135,7 +132,7 @@ export async function POST(request: NextRequest) {
       await fs.rename(tempPath, filePath)
       normResult = { success: true, analysis: {}, normalizedPath: filePath, settings: {} }
     } else {
-      // For BINAURAL, treat as a regular WAV file and normalize
+      // For other types, normalize the audio
       normResult = await normalizeAudioFile(tempPath, filePath, normalizationKey)
       // Remove temp file
       await fs.unlink(tempPath)
@@ -144,41 +141,53 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update or create audio version in database
-    const existingVersion = await prisma.audioVersion.findFirst({
+    // Get the next version number for this type
+    const latestVersion = await prisma.audioVersion.findFirst({
       where: {
         trackId,
         versionType: versionType as 'STEREO' | 'ATMOS' | 'REFERENCE'
+      },
+      orderBy: {
+        versionNumber: 'desc'
       }
     })
 
-    let audioVersion
-    if (existingVersion) {
-      // Update existing version
-      audioVersion = await prisma.audioVersion.update({
-        where: { id: existingVersion.id },
-        data: {
-          fileName,
-          filePath: relativePath,
-          fileSize: buffer.length,
-          isNormalized: versionType === 'ATMOS' ? false : true,
-          lufsLevel: versionType === 'ATMOS' ? null : normResult.analysis.originalLufs ?? null
-        }
-      })
-    } else {
-      // Create new version
-      audioVersion = await prisma.audioVersion.create({
-        data: {
-          trackId,
-          versionType: versionType as 'STEREO' | 'ATMOS' | 'REFERENCE',
-          fileName,
-          filePath: relativePath,
-          fileSize: buffer.length,
-          isNormalized: versionType === 'ATMOS' ? false : true,
-          lufsLevel: versionType === 'ATMOS' ? null : normResult.analysis.originalLufs ?? null
-        }
-      })
-    }
+    const nextVersionNumber = (latestVersion?.versionNumber || 0) + 1
+
+    // Deactivate all existing versions of this type
+    await prisma.audioVersion.updateMany({
+      where: {
+        trackId,
+        versionType: versionType as 'STEREO' | 'ATMOS' | 'REFERENCE'
+      },
+      data: {
+        isActive: false
+      }
+    })
+
+    // Update filename to include version number
+    const versionSuffix = nextVersionNumber > 1 ? `_v${nextVersionNumber}` : ''
+    fileName = `${originalName}_${versionType.toLowerCase()}${versionSuffix}${fileExtension}`
+    const versionedFilePath = path.join(uploadDir, fileName)
+    const versionedRelativePath = `/uploads/projects/${projectId}/${artistSlug}/${trackId}/${fileName}`
+
+    // Move file to versioned name
+    await fs.rename(filePath, versionedFilePath)
+
+    // Create new version
+    const audioVersion = await prisma.audioVersion.create({
+      data: {
+        trackId,
+        versionType: versionType as 'STEREO' | 'ATMOS' | 'REFERENCE',
+        versionNumber: nextVersionNumber,
+        fileName,
+        filePath: versionedRelativePath,
+        fileSize: buffer.length,
+        isNormalized: versionType === 'ATMOS' ? false : true,
+        lufsLevel: versionType === 'ATMOS' ? null : normResult.analysis.originalLufs ?? null,
+        isActive: true
+      }
+    })
 
     return NextResponse.json({
       success: true,

@@ -43,6 +43,8 @@ export default function Dashboard() {
   const [showCreateProject, setShowCreateProject] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const [deletingProject, setDeletingProject] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const router = useRouter()
 
   const [newProject, setNewProject] = useState({
@@ -116,7 +118,7 @@ export default function Dashboard() {
       } else {
         setCreateError(data.error || 'Failed to create project')
       }
-    } catch (error) {
+    } catch {
       setCreateError('Network error. Please try again.')
     } finally {
       setCreating(false)
@@ -128,6 +130,31 @@ export default function Dashboard() {
       ...prev,
       [e.target.name]: e.target.value
     }))
+  }
+
+  const handleDeleteProject = async (projectId: string) => {
+    setDeletingProject(projectId)
+    
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        // Remove the project from the local state
+        setProjects(prev => prev.filter(p => p.id !== projectId))
+        setShowDeleteConfirm(null)
+      } else {
+        const error = await response.json()
+        console.error('Failed to delete project:', error)
+        alert('Failed to delete project. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error)
+      alert('Network error. Please try again.')
+    } finally {
+      setDeletingProject(null)
+    }
   }
 
   const getInitials = (name: string) => {
@@ -334,6 +361,47 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+              <div className="bg-gradient-to-r from-red-600 to-red-800 px-6 py-4 rounded-t-2xl">
+                <h3 className="text-xl font-bold text-white">Delete Project</h3>
+              </div>
+
+              <div className="p-6">
+                <p className="text-gray-700 mb-6">
+                  Are you sure you want to delete this project? This action cannot be undone and will permanently delete all tracks and audio files.
+                </p>
+
+                <div className="flex items-center justify-end space-x-3">
+                  <button
+                    onClick={() => setShowDeleteConfirm(null)}
+                    disabled={deletingProject === showDeleteConfirm}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors font-medium disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProject(showDeleteConfirm)}
+                    disabled={deletingProject === showDeleteConfirm}
+                    className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg transition-colors font-medium"
+                  >
+                    {deletingProject === showDeleteConfirm ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Deleting...</span>
+                      </div>
+                    ) : (
+                      'Delete Project'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main Content */}
         <main className="max-w-7xl mx-auto px-6 py-8">
           <div className="mb-8">
@@ -363,10 +431,9 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {projects.map((project) => (
-                <Link
+                <div
                   key={project.id}
-                  href={`/project/${project.id}`}
-                  className="group bg-white/95 backdrop-blur-sm rounded-xl p-6 border border-gray-200 hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
+                  className="group bg-white/95 backdrop-blur-sm rounded-xl p-6 border border-gray-200 hover:shadow-xl transition-all duration-300"
                 >
                   {/* Album Cover */}
                   <div className="aspect-square bg-gradient-to-br from-red-100 to-red-200 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
@@ -419,8 +486,30 @@ export default function Dashboard() {
                         {new Date(project.createdAt).toLocaleDateString()}
                       </div>
                     </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-4 mt-4 border-t border-gray-100">
+                      <Link
+                        href={`/project/${project.id}`}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors font-medium text-center mr-2"
+                      >
+                        Open Project
+                      </Link>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setShowDeleteConfirm(project.id)
+                        }}
+                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete Project"
+                      >
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}

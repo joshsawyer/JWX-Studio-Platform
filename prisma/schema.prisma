@@ -75,18 +75,22 @@ model Track {
 model AudioVersion {
   id           String      @id @default(cuid())
   versionType  VersionType
+  versionNumber Int        @default(1) // Version number for same type (v1, v2, v3, etc.)
   fileName     String
   filePath     String
   fileSize     Int
   isNormalized Boolean     @default(false) // Apple Music normalization standard
   lufsLevel    Float?      // LUFS measurement for normalization
   waveformData Json?       // Store waveform peaks data
+  isActive     Boolean     @default(true) // Current active version for this type
   createdAt    DateTime    @default(now())
   
   // Relations
   trackId   String
   track     Track     @relation(fields: [trackId], references: [id], onDelete: Cascade)
   comments  Comment[]
+  
+  @@unique([trackId, versionType, versionNumber])
 }
 
 model Comment {
@@ -94,6 +98,7 @@ model Comment {
   content     String
   timestampMs Int      // timestamp in milliseconds
   status      CommentStatus @default(PENDING)
+  versionType VersionType @default(STEREO)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   

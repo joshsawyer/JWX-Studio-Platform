@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 
 interface Track {
   id: string
@@ -39,7 +39,6 @@ interface Project {
 
 export default function ProjectPage() {
   const params = useParams()
-  const router = useRouter()
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -113,7 +112,7 @@ export default function ProjectPage() {
       } else {
         setCreateError(data.error || 'Failed to create track')
       }
-    } catch (error) {
+    } catch {
       setCreateError('Network error. Please try again.')
     } finally {
       setCreating(false)
@@ -158,8 +157,9 @@ export default function ProjectPage() {
         const data = await res.json()
         setRemoveError(data.error || 'Failed to remove track.')
       }
-    } catch (err: any) {
-      setRemoveError(err.message || 'Failed to remove track.')
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove track.'
+      setRemoveError(errorMessage)
     } finally {
       setRemovingTrackId(null)
     }

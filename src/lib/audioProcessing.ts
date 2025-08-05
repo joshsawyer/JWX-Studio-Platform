@@ -1,6 +1,5 @@
 import { spawn } from 'child_process'
 import { promises as fs } from 'fs'
-import path from 'path'
 
 export interface AudioAnalysis {
   duration: number
@@ -85,7 +84,7 @@ export async function analyzeAudioFile(filePath: string): Promise<AudioAnalysis>
 
       try {
         const probeData = JSON.parse(stdout)
-        const audioStream = probeData.streams.find((s: any) => s.codec_type === 'audio')
+        const audioStream = probeData.streams.find((s: { codec_type: string }) => s.codec_type === 'audio')
         
         if (!audioStream) {
           reject(new Error('No audio stream found'))
@@ -133,7 +132,7 @@ async function analyzeLoudness(filePath: string): Promise<{
       stderr += data.toString()
     })
 
-    ffmpeg.on('close', (code) => {
+    ffmpeg.on('close', () => {
       try {
         // Parse EBU R128 measurements from stderr
         const lines = stderr.split('\n')
@@ -201,9 +200,6 @@ export async function normalizeAudioFile(
       }
     }
 
-    // Calculate the gain adjustment needed
-    const gainAdjustment = settings.targetLufs - analysis.originalLufs
-
     // Build ffmpeg command for normalization
     const ffmpegArgs = [
       '-i', inputPath,
@@ -231,13 +227,14 @@ export async function normalizeAudioFile(
       settings
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Processing failed'
     return {
       success: false,
       analysis: {} as AudioAnalysis,
       normalizedPath: '',
       settings: NORMALIZATION_TARGETS[versionType],
-      error: error.message
+      error: errorMessage
     }
   }
 }
@@ -326,7 +323,7 @@ function runFFmpeg(args: string[]): Promise<void> {
  * Get target LUFS for a version type
  */
 export function getTargetLufs(versionType: string): number {
-  const targets = NORMALIZATION_TARGETS as any
+  const targets = NORMALIZATION_TARGETS as Record<string, { targetLufs: number }>
   return targets[versionType]?.targetLufs || -16.0
 }
 

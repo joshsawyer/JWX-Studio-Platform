@@ -27,8 +27,9 @@ export default function TrackUploadPage() {
         const data = await res.json();
         setRemoveError(data.error || "Failed to remove track.");
       }
-    } catch (err: any) {
-      setRemoveError(err.message || "Failed to remove track.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to remove track."
+      setRemoveError(errorMessage);
     } finally {
       setRemoving(false);
     }

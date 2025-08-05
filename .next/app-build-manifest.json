@@ -55,6 +55,11 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/api/audio-stream/[...path]/route.js"
+    ],
+    "/api/tracks/[id]/versions/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/tracks/[id]/versions/route.js"
     ]
   }
 }

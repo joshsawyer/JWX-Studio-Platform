@@ -18,18 +18,20 @@ export async function GET(request: NextRequest) {
     const trackId = searchParams.get('trackId')
     const audioVersionId = searchParams.get('audioVersionId')
 
-    if (!trackId || !audioVersionId) {
+    if (!trackId) {
       return NextResponse.json(
-        { error: 'trackId and audioVersionId are required' },
+        { error: 'trackId is required' },
         { status: 400 }
       )
     }
 
+    const whereClause: { trackId: string; audioVersionId?: string } = { trackId }
+    if (audioVersionId) {
+      whereClause.audioVersionId = audioVersionId
+    }
+
     const comments = await prisma.comment.findMany({
-      where: {
-        trackId,
-        audioVersionId
-      },
+      where: whereClause,
       include: {
         user: {
           select: {
@@ -86,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { content, timestampMs, trackId, audioVersionId } = body
+    const { content, timestampMs, trackId, audioVersionId, versionType } = body
 
     if (!content || typeof timestampMs !== 'number' || !trackId || !audioVersionId) {
       return NextResponse.json(
@@ -138,6 +140,7 @@ export async function POST(request: NextRequest) {
         timestampMs,
         trackId,
         audioVersionId,
+        versionType: versionType || 'STEREO',
         userId: user.id
       },
       include: {
@@ -172,6 +175,97 @@ export async function POST(request: NextRequest) {
     console.error('Error creating comment:', error)
     return NextResponse.json(
       { error: 'Failed to create comment' },
+      { status: 500 }
+    )
+  }
+}
+
+// PATCH /api/comments - Update comment status
+export async function PATCH(request: NextRequest) {
+  try {
+    const user = await getAuthUser(request)
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const body = await request.json()
+    const { commentId, status } = body
+
+    if (!commentId || !status) {
+      return NextResponse.json(
+        { error: 'commentId and status are required' },
+        { status: 400 }
+      )
+    }
+
+    if (!['PENDING', 'APPROVED', 'RESOLVED'].includes(status)) {
+      return NextResponse.json(
+        { error: 'Invalid status. Must be PENDING, APPROVED, or RESOLVED' },
+        { status: 400 }
+      )
+    }
+
+    // Verify the comment exists and user has access
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      include: {
+        track: {
+          include: {
+            project: {
+              select: {
+                userId: true
+              }
+            }
+          }
+        }
+      }
+    })
+
+    if (!comment) {
+      return NextResponse.json(
+        { error: 'Comment not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check permissions - user must be project owner, comment author, or engineer/admin
+    const canUpdateStatus = 
+      user.role === 'ADMIN' ||
+      user.role === 'ENGINEER' ||
+      comment.track.project.userId === user.id ||
+      comment.userId === user.id
+
+    if (!canUpdateStatus) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      )
+    }
+
+    const updatedComment = await prisma.comment.update({
+      where: { id: commentId },
+      data: { status },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true
+          }
+        }
+      }
+    })
+
+    return NextResponse.json(updatedComment)
+  } catch (error) {
+    console.error('Error updating comment status:', error)
+    return NextResponse.json(
+      { error: 'Failed to update comment status' },
       { status: 500 }
     )
   }

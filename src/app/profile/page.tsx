@@ -73,7 +73,7 @@ export default function ProfilePage() {
     setMessage('')
 
     try {
-      const updateData: any = {
+      const updateData: { name: string; phone: string; currentPassword?: string; newPassword?: string } = {
         name: formData.name,
         phone: formData.phone
       }
@@ -118,7 +118,7 @@ export default function ProfilePage() {
       } else {
         setError(data.error || 'Failed to update profile')
       }
-    } catch (error) {
+    } catch {
       setError('Network error. Please try again.')
     } finally {
       setSaving(false)
@@ -325,7 +325,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
-                    Leave password fields empty if you don't want to change your password
+                    Leave password fields empty if you don&apos;t want to change your password
                   </p>
                 </div>
 

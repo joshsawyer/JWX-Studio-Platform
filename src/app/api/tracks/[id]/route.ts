@@ -29,9 +29,11 @@ export async function GET(
           select: {
             id: true,
             versionType: true,
+            versionNumber: true,
             fileName: true,
             filePath: true,
             isNormalized: true,
+            isActive: true,
             lufsLevel: true
           }
         },

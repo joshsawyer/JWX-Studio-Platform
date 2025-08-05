@@ -4,14 +4,17 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import WaveformPlayer from '@/components/audio/WaveformPlayer';
+import SimpleAudioPlayer from '@/components/audio/SimpleAudioPlayer';
+import VersionManager from '@/components/audio/VersionManager';
 
 interface AudioVersion {
   id: string;
   versionType: 'STEREO' | 'ATMOS' | 'REFERENCE';
+  versionNumber: number;
   fileName: string;
   filePath: string;
   isNormalized: boolean;
+  isActive: boolean;
   lufsLevel?: number;
 }
 
@@ -36,7 +39,7 @@ export default function TrackPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedVersionType, setSelectedVersionType] = useState<'STEREO' | 'ATMOS' | 'REFERENCE'>('STEREO');
-  const [currentAudioUrl, setCurrentAudioUrl] = useState<string | null>(null);
+  const [showVersionManager, setShowVersionManager] = useState(false);
 
   const params = useParams();
   const trackId = params.id as string;
@@ -47,27 +50,6 @@ export default function TrackPage() {
     }
   }, [trackId]);
 
-  useEffect(() => {
-    if (track && track.audioVersions.length > 0) {
-      const currentVersion = getCurrentAudioVersion();
-      if (currentVersion) {
-        // Clean the filePath by removing any leading '/uploads/' if it exists
-        const cleanedFilePath = currentVersion.filePath.startsWith('/uploads/')
-          ? currentVersion.filePath.substring('/uploads/'.length)
-          : currentVersion.filePath;
-        const generatedUrl = `/api/audio-stream/${cleanedFilePath}`;
-        setCurrentAudioUrl(generatedUrl);
-        // Log the URL being passed to WaveformPlayer
-        console.log('TrackPage: Generated audio URL for WaveformPlayer:', generatedUrl);
-      } else {
-        setCurrentAudioUrl(null);
-        console.log('TrackPage: No current audio version found for selected mix type.');
-      }
-    } else if (track && track.audioVersions.length === 0) {
-      setCurrentAudioUrl(null);
-      console.log('TrackPage: No audio versions available for this track.');
-    }
-  }, [track, selectedVersionType]);
 
   const fetchTrack = async () => {
     try {
@@ -78,25 +60,51 @@ export default function TrackPage() {
       }
       const data = await response.json();
       setTrack(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load track'
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const getCurrentAudioVersion = () => {
-    return track?.audioVersions.find(v => v.versionType === selectedVersionType);
-  };
 
-  const getCurrentAudioVersionId = () => {
-    const currentVersion = getCurrentAudioVersion();
-    return currentVersion?.id;
-  };
 
   const getAvailableMixes = (): ('STEREO' | 'ATMOS' | 'REFERENCE')[] => {
     if (!track) return [];
     return Array.from(new Set(track.audioVersions.map(v => v.versionType)));
+  };
+
+  const getAllAudioSources = () => {
+    if (!track) return [];
+    
+    return track.audioVersions
+      .filter(version => version.isActive)
+      .map(version => {
+        let cleanedFilePath = version.filePath;
+        
+        // Remove /uploads/ prefix if it exists to get the relative path
+        if (cleanedFilePath.startsWith('/uploads/')) {
+          cleanedFilePath = cleanedFilePath.substring('/uploads/'.length);
+        }
+        // Also handle case where path doesn't have /uploads/ prefix
+        else if (cleanedFilePath.startsWith('uploads/')) {
+          cleanedFilePath = cleanedFilePath.substring('uploads/'.length);
+        }
+        
+        return {
+          url: `/api/audio-stream/${cleanedFilePath}`,
+          type: version.versionType.toLowerCase() as 'stereo' | 'atmos' | 'reference',
+          audioVersionId: version.id,
+          versionNumber: version.versionNumber,
+          isActive: version.isActive
+        };
+      });
+  };
+
+  const getVersionsForType = (type: 'STEREO' | 'ATMOS' | 'REFERENCE') => {
+    if (!track) return [];
+    return track.audioVersions.filter(v => v.versionType === type);
   };
 
 
@@ -195,6 +203,12 @@ export default function TrackPage() {
                   </svg>
                   <span>Upload Audio</span>
                 </Link>
+                <button
+                  onClick={() => setShowVersionManager(!showVersionManager)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  {showVersionManager ? 'Hide' : 'Manage'} Versions
+                </button>
                 {track.bpm && (
                   <div className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium">
                     {track.bpm} BPM
@@ -209,6 +223,19 @@ export default function TrackPage() {
             </div>
           </div>
 
+          {/* Version Manager */}
+          {showVersionManager && (
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 p-8 mb-6">
+              <VersionManager
+                trackId={track.id}
+                onVersionChange={() => {
+                  // Refresh the track data when versions change
+                  fetchTrack()
+                }}
+              />
+            </div>
+          )}
+
           {/* Audio Player Card */}
           <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 p-8">
             {/* Mix Version Selection */}
@@ -216,13 +243,14 @@ export default function TrackPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-800">Audio Versions</h3>
                 <div className="text-sm text-gray-500">
-                  {getAvailableMixes().length} of 3 versions available
+                  {getAvailableMixes().length} of 3 types available
                 </div>
               </div>
               
               <div className="grid grid-cols-3 gap-4 mb-6">
                 {(['STEREO', 'ATMOS', 'REFERENCE'] as const).map((type) => {
-                  const isAvailable = getAvailableMixes().includes(type)
+                  const versions = getVersionsForType(type)
+                  const isAvailable = versions.length > 0
                   const isSelected = selectedVersionType === type
                   
                   let config = {
@@ -323,6 +351,7 @@ export default function TrackPage() {
                           isAvailable ? 'text-gray-900' : 'text-gray-400'
                         }`}>
                           {config.label}
+                          {versions.length > 1 && <span className="ml-1 text-xs">({versions.length})</span>}
                           {!isAvailable && <span className="ml-2 text-xs font-normal">(Unavailable)</span>}
                         </h4>
                         <p className={`text-sm ${
@@ -336,20 +365,16 @@ export default function TrackPage() {
                 })}
               </div>
             </div>
-            {currentAudioUrl ? (
-              <WaveformPlayer
-                key={`${track.id}-${selectedVersionType}-${currentAudioUrl}`}
-                audioUrl={currentAudioUrl}
+            {track.audioVersions.length > 0 ? (
+              <SimpleAudioPlayer
+                key={track.id}
+                audioSources={getAllAudioSources()}
                 trackName={track.name}
                 artistName={track.project.artist}
                 albumName={track.project.name}
-                height={120}
                 currentMix={selectedVersionType.toLowerCase() as 'stereo' | 'atmos' | 'reference'}
                 trackId={track.id}
-                projectId={track.project.id}
-                audioVersionId={getCurrentAudioVersionId()}
-                onReady={() => console.log('Waveform Player is ready')}
-                onTimeUpdate={(time) => console.log('Current time:', time)}
+                onVersionChange={(version: 'STEREO' | 'ATMOS' | 'REFERENCE') => setSelectedVersionType(version)}
               />
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
@@ -361,7 +386,7 @@ export default function TrackPage() {
                   </div>
                   <div className="text-center">
                     <p className="text-gray-600 font-medium mb-2">No audio available</p>
-                    <p className="text-gray-500 text-sm mb-4">No audio versions found for the selected mix type.</p>
+                    <p className="text-gray-500 text-sm mb-4">No audio versions available for this track.</p>
                     <Link
                       href={`/track/${track.id}/upload`}
                       className="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"

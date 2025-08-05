@@ -25,7 +25,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updateData: any = {
+    const updateData: { name: string; phone: string | null; passwordHash?: string; salt?: string } = {
       name: name.trim(),
       phone: phone || null
     }

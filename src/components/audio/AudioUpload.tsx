@@ -2,10 +2,21 @@
 
 import { useState, useRef, useCallback } from 'react'
 
+interface AudioVersion {
+  id: string
+  trackId: string
+  versionType: string
+  fileName: string
+  filePath: string
+  fileSize: number
+  createdAt: string
+  updatedAt: string
+}
+
 interface AudioUploadProps {
   trackId: string
   versionType: 'STEREO' | 'ATMOS' | 'REFERENCE'
-  onUploadComplete?: (audioVersion: any) => void
+  onUploadComplete?: (audioVersion: AudioVersion) => void
   existingFile?: string
 }
 
@@ -93,8 +104,9 @@ export default function AudioUpload({
         throw new Error(result.error || 'Upload failed')
       }
 
-    } catch (error: any) {
-      setError(error.message)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed'
+      setError(errorMessage)
       setUploadProgress(0)
     } finally {
       setUploading(false)
@@ -119,7 +131,7 @@ export default function AudioUpload({
     if (files.length > 0) {
       uploadFile(files[0])
     }
-  }, [trackId, versionType])
+  }, [trackId, versionType, uploadFile])
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -128,31 +140,6 @@ export default function AudioUpload({
     }
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
-
-  const getVersionColor = () => {
-    switch (versionType) {
-      case 'STEREO': return 'bg-green-500'
-      case 'ATMOS': return 'bg-blue-500'
-      case 'REFERENCE': return 'bg-purple-500'
-      default: return 'bg-gray-500'
-    }
-  }
-
-  const getVersionName = () => {
-    switch (versionType) {
-      case 'STEREO': return 'Stereo Mix'
-      case 'ATMOS': return 'Atmos Mix'
-      case 'REFERENCE': return 'Reference Mix'
-      default: return versionType
-    }
-  }
 
   return (
     <div>

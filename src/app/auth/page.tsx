@@ -43,7 +43,7 @@ export default function AuthPage() {
       // Redirect to dashboard on success
       router.push('/dashboard')
 
-    } catch (error) {
+    } catch {
       setError('Network error. Please try again.')
     } finally {
       setIsLoading(false)

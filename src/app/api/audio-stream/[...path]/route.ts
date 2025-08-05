@@ -9,10 +9,21 @@ import { promises as fs } from 'fs';
 // It should point to the 'uploads' directory within your project.
 const AUDIO_FILES_BASE_DIR = '/Users/joshsawyer/Documents/GitHub/JWX-Studio-Platform/uploads';
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': 'Range, Content-Range',
+    },
+  });
+}
+
 export async function GET(
   req: NextRequest,
   // Keep params in the signature for type inference, but we'll try to get path differently
-  { params }: { params: Promise<{ path: string[] }> }
+  {}: { params: Promise<{ path: string[] }> }
 ) {
   try {
     // Attempt to get the path segments directly from req.nextUrl.pathname
@@ -42,6 +53,8 @@ export async function GET(
 
     // Log the full absolute path the API is trying to access
     console.log('API: Attempting to access absoluteFilePath:', absoluteFilePath);
+    console.log('API: AUDIO_FILES_BASE_DIR:', AUDIO_FILES_BASE_DIR);
+    console.log('API: Full request URL:', req.nextUrl.href);
 
     // Check if the file exists
     try {
@@ -51,8 +64,26 @@ export async function GET(
       return new NextResponse('Audio file not found.', { status: 404 });
     }
 
-    // Read the file content
+    // Get file stats for size
+    const stats = await fs.stat(absoluteFilePath);
+    const fileSize = stats.size;
+
+    // Handle range requests for streaming
+    const range = req.headers.get('range');
+    let start = 0;
+    let end = fileSize - 1;
+    let partialContent = false;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, "").split("-");
+      start = parseInt(parts[0], 10);
+      end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      partialContent = true;
+    }
+
+    // Read the appropriate chunk of the file
     const fileBuffer = await fs.readFile(absoluteFilePath);
+    const chunk = fileBuffer.subarray(start, end + 1);
 
     // Determine the content type based on the file extension
     const ext = path.extname(absoluteFilePath).toLowerCase();
@@ -74,14 +105,28 @@ export async function GET(
     }
 
     // Return the file as a response
-    return new NextResponse(fileBuffer, {
-      headers: {
-        'Content-Type': contentType,
-        'Content-Length': fileBuffer.length.toString(),
-        // Optional: Set Content-Disposition if you want the browser to download instead of play
-        // 'Content-Disposition': `attachment; filename="${path.basename(absoluteFilePath)}"`,
-      },
-    });
+    const headers: Record<string, string> = {
+      'Content-Type': contentType,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'public, max-age=31536000',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      'Access-Control-Allow-Headers': 'Range, Content-Range',
+    };
+
+    if (partialContent) {
+      headers['Content-Range'] = `bytes ${start}-${end}/${fileSize}`;
+      headers['Content-Length'] = (end - start + 1).toString();
+      return new NextResponse(chunk, {
+        status: 206,
+        headers,
+      });
+    } else {
+      headers['Content-Length'] = fileSize.toString();
+      return new NextResponse(chunk, {
+        headers,
+      });
+    }
   } catch (error) {
     console.error('API: Error serving audio file:', error);
     return new NextResponse('Internal Server Error.', { status: 500 });

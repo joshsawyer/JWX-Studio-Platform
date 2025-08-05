@@ -1,13 +1,14 @@
 {
-  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/api/user/me/route": "app/api/user/me/route.js",
   "/api/projects/route": "app/api/projects/route.js",
   "/api/projects/[id]/route": "app/api/projects/[id]/route.js",
-  "/api/comments/route": "app/api/comments/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/api/tracks/[id]/route": "app/api/tracks/[id]/route.js",
+  "/api/comments/route": "app/api/comments/route.js",
   "/api/audio-stream/[...path]/route": "app/api/audio-stream/[...path]/route.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/project/[id]/page": "app/project/[id]/page.js",
+  "/api/tracks/[id]/versions/route": "app/api/tracks/[id]/versions/route.js",
   "/page": "app/page.js",
-  "/track/[id]/page": "app/track/[id]/page.js"
+  "/dashboard/page": "app/dashboard/page.js",
+  "/track/[id]/page": "app/track/[id]/page.js",
+  "/project/[id]/page": "app/project/[id]/page.js"
 }

@@ -20,7 +20,7 @@ export default function HomePage() {
         // User is not authenticated, redirect to auth page
         router.push('/auth')
       }
-    } catch (error) {
+    } catch {
       // Network error or no response, redirect to auth
       router.push('/auth')
     }
